@@ -45,3 +45,7 @@ Azure Databricks was used for PySpark transformations and for creating Silver an
 
 ![Databricks](../new.png)
 
+
+## Prerequisites
+- Azure subscription with required permissions
+- Local tools: Azure CLI, Databricks CLI, SQL Server Management Studio
