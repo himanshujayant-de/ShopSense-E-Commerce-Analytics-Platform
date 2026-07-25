@@ -26,9 +26,6 @@ The project captures source data changes, stores raw data in the Bronze layer, c
 
 ## Architecture
 
-
-## Architecture
-
 Azure SQL Database  --> ADLS  --> Azure Data Factory -->  ADLS Gen2 Bronze Layer  --> Azure Databricks Silver Layer  --> Azure Databricks Gold Layer  --> Databricks SQL Warehouse --> Power BI Dashboard
 
 
