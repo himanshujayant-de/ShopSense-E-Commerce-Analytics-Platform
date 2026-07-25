@@ -1,5 +1,14 @@
 # Project Setup
 
+
+## Prerequisites
+
+- An Azure account with an active Azure subscription
+- Access to an Azure tenant with the required permissions
+- Azure Databricks workspace
+- SQL Server Management Studio
+
+
 ## 1. Azure Resource Group
 
 A dedicated Azure Resource Group was created to organise and manage all ShopSense resources in one place.
@@ -46,6 +55,4 @@ Azure Databricks was used for PySpark transformations and for creating Silver an
 ![Databricks](../new.png)
 
 
-## Prerequisites
-- Azure subscription with required permissions
-- Local tools: Azure CLI, Databricks CLI, SQL Server Management Studio
+
