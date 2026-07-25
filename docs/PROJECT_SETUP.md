@@ -13,16 +13,22 @@ ADF pipelines then loaded these files into Azure SQL Database to simulate a real
 
 
 
-
+![ADLS](../landing.png)
 
 ## 3. Azure SQL Database
 
 Azure SQL Database was used as the primary source system for the main ingestion pipeline.
 
 
+
+
+
 ## 4. Azure Data Factory
 
 Azure Data Factory was used to move data between the source systems and the Bronze layer.
+
+
+![Azure Data Factory](../ADF.png)
 
 
 ## 5. Azure Databricks
