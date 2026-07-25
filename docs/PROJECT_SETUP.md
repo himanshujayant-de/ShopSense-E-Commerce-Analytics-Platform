@@ -14,6 +14,7 @@ ADF pipelines then loaded these files into Azure SQL Database to simulate a real
 
 
 
+
 ## 3. Azure SQL Database
 
 Azure SQL Database was used as the primary source system for the main ingestion pipeline.
