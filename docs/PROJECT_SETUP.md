@@ -26,7 +26,7 @@ Before create a Azure sql database
 2. create a sql database
 
 
-
+![database](../sql_database.png)
 
 
 
@@ -36,7 +36,7 @@ Before create a Azure sql database
 Azure Data Factory was used to move data between the source systems and the Bronze layer.
 
 
-![Azure Data Factory](../ADF.png)
+![ADF](../ADF.png)
 
 
 ## 5. Azure Databricks
