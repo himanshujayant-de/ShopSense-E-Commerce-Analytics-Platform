@@ -18,6 +18,14 @@ ADF pipelines then loaded these files into Azure SQL Database to simulate a real
 ## 3. Azure SQL Database
 
 Azure SQL Database was used as the primary source system for the main ingestion pipeline.
+Before create a Azure sql database 
+1. create a sql server
+
+![sqlserver](../sqlserver.png)
+
+2. create a sql database
+
+
 
 
 
@@ -34,3 +42,6 @@ Azure Data Factory was used to move data between the source systems and the Bron
 ## 5. Azure Databricks
 
 Azure Databricks was used for PySpark transformations and for creating Silver and Gold tables.
+
+![Databricks](../new.png)
+
