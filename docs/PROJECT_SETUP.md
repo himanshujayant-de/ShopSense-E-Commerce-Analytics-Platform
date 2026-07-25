@@ -21,7 +21,7 @@ Azure SQL Database was used as the primary source system for the main ingestion 
 Before create a Azure sql database 
 1. create a sql server
 
-![sqlserver](../sqlserver.png)
+![sqlserver](https://github.com/himanshujayant-de/ShopSense-E-Commerce-Analytics-Platform/blob/79b1275acb3c173068766fdc61c3dff0912308a0/sql%20server.png)
 
 2. create a sql database
 
