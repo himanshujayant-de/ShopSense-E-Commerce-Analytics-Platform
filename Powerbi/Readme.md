@@ -19,5 +19,5 @@ Power BI connects to the Databricks SQL Warehouse and reads the business-ready G
 
 ## Files
 
-Dashboard screenshots are available inside the `screenshots/` folder.
+Dashboard screenshots are available in this folder.
 
