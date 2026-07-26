@@ -1,0 +1,2925 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "type": "string",
+            "metadata": "Data Factory name",
+            "defaultValue": "himansh-ADF"
+        },
+        "AzureDataLakeStorage1_accountKey": {
+            "type": "secureString",
+            "metadata": "Secure string for 'accountKey' of 'AzureDataLakeStorage1'"
+        },
+        "ls_AzureSql_db_password": {
+            "type": "secureString",
+            "metadata": "Secure string for 'password' of 'ls_AzureSql_db'"
+        },
+        "AzureDataLakeStorage1_properties_typeProperties_url": {
+            "type": "string",
+            "defaultValue": "https://stshopsensedevhj.dfs.core.windows.net/"
+        },
+        "ls_exchange_rate_api_properties_typeProperties_url": {
+            "type": "string",
+            "defaultValue": "https://open.er-api.com"
+        },
+        "ls_AzureSql_db_properties_typeProperties_server": {
+            "type": "string",
+            "defaultValue": "ss-sqlserver.database.windows.net"
+        },
+        "ls_AzureSql_db_properties_typeProperties_database": {
+            "type": "string",
+            "defaultValue": "ss-sql-database"
+        },
+        "ls_AzureSql_db_properties_typeProperties_userName": {
+            "type": "string",
+            "defaultValue": "ssprojectserver"
+        }
+    },
+    "variables": {
+        "factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+    },
+    "resources": [
+        {
+            "name": "[concat(parameters('factoryName'), '/pl_ingest_exchange_rates')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "copy_exchange_rates",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "RestSource",
+                                "httpRequestTimeout": "00:01:40",
+                                "requestInterval": "00.00:00:00.010",
+                                "requestMethod": "GET"
+                            },
+                            "sink": {
+                                "type": "JsonSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "JsonWriteSettings"
+                                }
+                            },
+                            "enableStaging": false
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "ds_api_exchange_rates",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "ds_adls_exchange_rates",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "annotations": [],
+                "lastPublishTime": "2026-06-28T07:11:40Z"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_api_exchange_rates')]",
+                "[concat(variables('factoryId'), '/datasets/ds_adls_exchange_rates')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/pp_ingest_initial_load')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "ForEach_CSV_Files",
+                        "type": "ForEach",
+                        "dependsOn": [],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "items": {
+                                "value": "@json('[\"Customers\",\"Products\",\"Sellers\",\"Orders\",\"OrderItems\",\"Returns\"]')",
+                                "type": "Expression"
+                            },
+                            "isSequential": true,
+                            "activities": [
+                                {
+                                    "name": "Copy_CSV_To_SQL",
+                                    "type": "Copy",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "timeout": "0.12:00:00",
+                                        "retry": 0,
+                                        "retryIntervalInSeconds": 30,
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "source": {
+                                            "type": "DelimitedTextSource",
+                                            "storeSettings": {
+                                                "type": "AzureBlobFSReadSettings",
+                                                "recursive": true,
+                                                "enablePartitionDiscovery": false
+                                            },
+                                            "formatSettings": {
+                                                "type": "DelimitedTextReadSettings"
+                                            }
+                                        },
+                                        "sink": {
+                                            "type": "AzureSqlSink",
+                                            "writeBehavior": "insert",
+                                            "sqlWriterUseTableLock": false
+                                        },
+                                        "enableStaging": false,
+                                        "translator": {
+                                            "type": "TabularTranslator",
+                                            "typeConversion": true,
+                                            "typeConversionSettings": {
+                                                "allowDataTruncation": true,
+                                                "treatBooleanAsNumber": false
+                                            }
+                                        }
+                                    },
+                                    "inputs": [
+                                        {
+                                            "referenceName": "DS_CSV_Source",
+                                            "type": "DatasetReference",
+                                            "parameters": {
+                                                "FileName": "@concat(item(), '.csv')"
+                                            }
+                                        }
+                                    ],
+                                    "outputs": [
+                                        {
+                                            "referenceName": "DS_SQL",
+                                            "type": "DatasetReference",
+                                            "parameters": {}
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "annotations": [],
+                "lastPublishTime": "2026-07-03T07:16:54Z"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/DS_CSV_Source')]",
+                "[concat(variables('factoryId'), '/datasets/DS_SQL')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/pl_copy_orders_to_adls')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "Copy_orders",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "AzureSqlSource",
+                                "sqlReaderQuery": {
+                                    "value": "select * from dbo.Orders",
+                                    "type": "Expression"
+                                },
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "sink": {
+                                "type": "ParquetSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetWriteSettings"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "DS_SQL_Orders",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "DS_orders_Parquet",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Copy_orderitems",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "AzureSqlSource",
+                                "sqlReaderQuery": {
+                                    "value": "select * from Orderitems",
+                                    "type": "Expression"
+                                },
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "sink": {
+                                "type": "ParquetSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetWriteSettings"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "DS_SQL_OrderItems",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "DS_orderitems_parquet",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Copy_returns",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "AzureSqlSource",
+                                "sqlReaderQuery": {
+                                    "value": "select * from dbo.returns",
+                                    "type": "Expression"
+                                },
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "sink": {
+                                "type": "ParquetSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetWriteSettings"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "DS_sql_returns",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "DS_returns_parquet",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "annotations": [],
+                "lastPublishTime": "2026-07-04T19:45:31Z"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/DS_SQL_Orders')]",
+                "[concat(variables('factoryId'), '/datasets/DS_orders_Parquet')]",
+                "[concat(variables('factoryId'), '/datasets/DS_SQL_OrderItems')]",
+                "[concat(variables('factoryId'), '/datasets/DS_orderitems_parquet')]",
+                "[concat(variables('factoryId'), '/datasets/DS_sql_returns')]",
+                "[concat(variables('factoryId'), '/datasets/DS_returns_parquet')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/pl_ingest_customers_incremental')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "lookup_customer_watermark",
+                        "type": "Lookup",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "AzureSqlSource",
+                                "sqlReaderQuery": {
+                                    "value": "select last_load_timestamp \nfrom watermark_control\nwhere source_name = 'Customers'",
+                                    "type": "Expression"
+                                },
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "dataset": {
+                                "referenceName": "DL_sql_watermark",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        }
+                    },
+                    {
+                        "name": "Copy_customer_incremental",
+                        "type": "Copy",
+                        "dependsOn": [
+                            {
+                                "activity": "lookup_customer_watermark",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "AzureSqlSource",
+                                "sqlReaderQuery": {
+                                    "value": "SELECT * FROM dbo.Customers\nWHERE LastModifiedDate > '@{activity('lookup_customer_watermark').output.firstRow.last_load_timestamp}'",
+                                    "type": "Expression"
+                                },
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "sink": {
+                                "type": "ParquetSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetWriteSettings"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "DL_sql_customers",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "DS_Parquet_customers",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    },
+                    {
+                        "name": "update_customer_watermark",
+                        "type": "SqlServerStoredProcedure",
+                        "dependsOn": [
+                            {
+                                "activity": "Copy_customer_incremental",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "storedProcedureName": "dbo.usp_UpdateWatermark",
+                            "storedProcedureParameters": {
+                                "source_name": {
+                                    "value": "customers",
+                                    "type": "String"
+                                },
+                                "rows_loaded": {
+                                    "value": {
+                                        "value": "@{activity('Copy_customer_incremental').output.rowsCopied}",
+                                        "type": "Expression"
+                                    },
+                                    "type": "Int32"
+                                }
+                            }
+                        },
+                        "linkedServiceName": {
+                            "referenceName": "ls_AzureSql_db",
+                            "type": "LinkedServiceReference"
+                        }
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "annotations": [],
+                "lastPublishTime": "2026-07-04T14:12:58Z"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/DL_sql_watermark')]",
+                "[concat(variables('factoryId'), '/datasets/DL_sql_customers')]",
+                "[concat(variables('factoryId'), '/datasets/DS_Parquet_customers')]",
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/pl_weekly_full_refresh')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "Copy_products_sql_to_adls_bronze",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "AzureSqlSource",
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "sink": {
+                                "type": "ParquetSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetWriteSettings"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "DS_sql_products",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "DS_Parquet_Products",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Copy_seller_sql_to_adls_bronze",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "AzureSqlSource",
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "sink": {
+                                "type": "ParquetSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetWriteSettings"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "DS_SQL_Sellers",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "DS_Parquet_Sellers",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "annotations": [],
+                "lastPublishTime": "2026-07-25T10:38:50Z"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/DS_sql_products')]",
+                "[concat(variables('factoryId'), '/datasets/DS_Parquet_Products')]",
+                "[concat(variables('factoryId'), '/datasets/DS_SQL_Sellers')]",
+                "[concat(variables('factoryId'), '/datasets/DS_Parquet_Sellers')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/pl_copy_product_reviwes_to_adls')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "Copy_sql_to_adls",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "AzureSqlSource",
+                                "queryTimeout": "02:00:00",
+                                "partitionOption": "None"
+                            },
+                            "sink": {
+                                "type": "ParquetSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetWriteSettings"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "DS_product_reviews",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "DS_productreviwes_parquet",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "annotations": [],
+                "lastPublishTime": "2026-07-13T23:14:17Z"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/DS_product_reviews')]",
+                "[concat(variables('factoryId'), '/datasets/DS_productreviwes_parquet')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ordersCDCtoADLS')]",
+            "type": "Microsoft.DataFactory/factories/adfcdcs",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "SourceConnectionsInfo": [
+                    {
+                        "SourceEntities": [
+                            {
+                                "name": "dbo.Orders",
+                                "properties": {
+                                    "schema": [
+                                        {
+                                            "name": "OrderID",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "CustomerID",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "SellerID",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "OrderDate",
+                                            "dataType": "timestamp"
+                                        },
+                                        {
+                                            "name": "ShippedDate",
+                                            "dataType": "timestamp"
+                                        },
+                                        {
+                                            "name": "DeliveredDate",
+                                            "dataType": "timestamp"
+                                        },
+                                        {
+                                            "name": "OrderStatus",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "PaymentMethod",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "ShippingCity",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "ShippingState",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "ShippingPinCode",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "TotalAmount",
+                                            "dataType": "decimal(10,2)"
+                                        },
+                                        {
+                                            "name": "DiscountAmount",
+                                            "dataType": "decimal(10,2)"
+                                        },
+                                        {
+                                            "name": "ShippingCharges",
+                                            "dataType": "decimal(10,2)"
+                                        },
+                                        {
+                                            "name": "IsPrimeOrder",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "LastModifiedDate",
+                                            "dataType": "timestamp"
+                                        }
+                                    ],
+                                    "dslConnectorProperties": [
+                                        {
+                                            "name": "schemaName",
+                                            "value": "dbo"
+                                        },
+                                        {
+                                            "name": "tableName",
+                                            "value": "Orders"
+                                        },
+                                        {
+                                            "name": "enableNativeCdc",
+                                            "value": true
+                                        },
+                                        {
+                                            "name": "netChanges",
+                                            "value": true
+                                        },
+                                        {
+                                            "name": "allowSchemaDrift",
+                                            "value": false
+                                        },
+                                        {
+                                            "name": "inferDriftedColumnTypes",
+                                            "value": false
+                                        }
+                                    ]
+                                }
+                            }
+                        ],
+                        "Connection": {
+                            "linkedService": {
+                                "referenceName": "ls_AzureSql_db",
+                                "type": "LinkedServiceReference"
+                            },
+                            "linkedServiceType": "AzureSqlDatabase",
+                            "type": "linkedservicetype",
+                            "isInlineDataset": true,
+                            "commonDslConnectorProperties": [
+                                {
+                                    "name": "allowSchemaDrift",
+                                    "value": true
+                                },
+                                {
+                                    "name": "inferDriftedColumnTypes",
+                                    "value": true
+                                },
+                                {
+                                    "name": "format",
+                                    "value": "table"
+                                },
+                                {
+                                    "name": "store",
+                                    "value": "sqlserver"
+                                },
+                                {
+                                    "name": "databaseType",
+                                    "value": "databaseType"
+                                },
+                                {
+                                    "name": "database",
+                                    "value": "database"
+                                },
+                                {
+                                    "name": "skipInitialLoad",
+                                    "value": true
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "TargetConnectionsInfo": [
+                    {
+                        "TargetEntities": [
+                            {
+                                "name": "source/bronze/cdc/orders",
+                                "properties": {
+                                    "schema": [
+                                        {
+                                            "name": "OrderID",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "CustomerID",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "SellerID",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "OrderDate",
+                                            "dataType": "timestamp"
+                                        },
+                                        {
+                                            "name": "ShippedDate",
+                                            "dataType": "timestamp"
+                                        },
+                                        {
+                                            "name": "DeliveredDate",
+                                            "dataType": "timestamp"
+                                        },
+                                        {
+                                            "name": "OrderStatus",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "PaymentMethod",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "ShippingCity",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "ShippingState",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "ShippingPinCode",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "TotalAmount",
+                                            "dataType": "decimal(10,2)"
+                                        },
+                                        {
+                                            "name": "DiscountAmount",
+                                            "dataType": "decimal(10,2)"
+                                        },
+                                        {
+                                            "name": "ShippingCharges",
+                                            "dataType": "decimal(10,2)"
+                                        },
+                                        {
+                                            "name": "IsPrimeOrder",
+                                            "dataType": "string"
+                                        },
+                                        {
+                                            "name": "LastModifiedDate",
+                                            "dataType": "timestamp"
+                                        }
+                                    ],
+                                    "dslConnectorProperties": [
+                                        {
+                                            "name": "container",
+                                            "value": "source"
+                                        },
+                                        {
+                                            "name": "fileSystem",
+                                            "value": "source"
+                                        },
+                                        {
+                                            "name": "folderPath",
+                                            "value": "bronze/cdc/orders"
+                                        },
+                                        {
+                                            "name": "allowSchemaDrift",
+                                            "value": false
+                                        },
+                                        {
+                                            "name": "inferDriftedColumnTypes",
+                                            "value": false
+                                        }
+                                    ]
+                                }
+                            }
+                        ],
+                        "Connection": {
+                            "linkedService": {
+                                "referenceName": "AzureDataLakeStorage1",
+                                "type": "LinkedServiceReference"
+                            },
+                            "linkedServiceType": "AzureBlobFS",
+                            "type": "linkedservicetype",
+                            "isInlineDataset": true,
+                            "commonDslConnectorProperties": [
+                                {
+                                    "name": "allowSchemaDrift",
+                                    "value": true
+                                },
+                                {
+                                    "name": "inferDriftedColumnTypes",
+                                    "value": true
+                                },
+                                {
+                                    "name": "format",
+                                    "value": "parquet"
+                                }
+                            ]
+                        },
+                        "DataMapperMappings": [
+                            {
+                                "targetEntityName": "source/bronze/cdc/orders",
+                                "sourceEntityName": "dbo.Orders",
+                                "sourceConnectionReference": {
+                                    "connectionName": "ls_AzureSql_db",
+                                    "type": "linkedservicetype"
+                                },
+                                "attributeMappingInfo": {
+                                    "attributeMappings": [
+                                        {
+                                            "name": "CustomerID",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "CustomerID",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "DeliveredDate",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "DeliveredDate",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "DiscountAmount",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "DiscountAmount",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "IsPrimeOrder",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "IsPrimeOrder",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "LastModifiedDate",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "LastModifiedDate",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "OrderDate",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "OrderDate",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "OrderID",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "OrderID",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "OrderStatus",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "OrderStatus",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "PaymentMethod",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "PaymentMethod",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "SellerID",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "SellerID",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "ShippedDate",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "ShippedDate",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "ShippingCharges",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "ShippingCharges",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "ShippingCity",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "ShippingCity",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "ShippingPinCode",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "ShippingPinCode",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "ShippingState",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "ShippingState",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "TotalAmount",
+                                            "type": "Direct",
+                                            "functionName": "",
+                                            "attributeReference": {
+                                                "name": "TotalAmount",
+                                                "entity": "dbo.Orders",
+                                                "entityConnectionReference": {
+                                                    "connectionName": "ls_AzureSql_db",
+                                                    "type": "linkedservicetype"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ],
+                        "Relationships": []
+                    }
+                ],
+                "Policy": {
+                    "recurrence": {
+                        "frequency": "Minute",
+                        "interval": 15
+                    },
+                    "mode": "Microbatch"
+                },
+                "status": "Stopped",
+                "allowVNetOverride": false,
+                "id": "14c6cb931fe14b34a39c96935bd0515b"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]",
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/OrderItemsCDCtoADLS')]",
+            "type": "Microsoft.DataFactory/factories/adfcdcs",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "SourceConnectionsInfo": [
+                    {
+                        "SourceEntities": [
+                            {
+                                "name": "dbo.OrderItems",
+                                "properties": {
+                                    "schema": [],
+                                    "dslConnectorProperties": [
+                                        {
+                                            "name": "schemaName",
+                                            "value": "dbo"
+                                        },
+                                        {
+                                            "name": "tableName",
+                                            "value": "OrderItems"
+                                        },
+                                        {
+                                            "name": "enableNativeCdc",
+                                            "value": true
+                                        },
+                                        {
+                                            "name": "netChanges",
+                                            "value": true
+                                        }
+                                    ]
+                                }
+                            }
+                        ],
+                        "Connection": {
+                            "linkedService": {
+                                "referenceName": "ls_AzureSql_db",
+                                "type": "LinkedServiceReference"
+                            },
+                            "linkedServiceType": "AzureSqlDatabase",
+                            "type": "linkedservicetype",
+                            "isInlineDataset": true,
+                            "commonDslConnectorProperties": [
+                                {
+                                    "name": "allowSchemaDrift",
+                                    "value": true
+                                },
+                                {
+                                    "name": "inferDriftedColumnTypes",
+                                    "value": true
+                                },
+                                {
+                                    "name": "format",
+                                    "value": "table"
+                                },
+                                {
+                                    "name": "store",
+                                    "value": "sqlserver"
+                                },
+                                {
+                                    "name": "databaseType",
+                                    "value": "databaseType"
+                                },
+                                {
+                                    "name": "database",
+                                    "value": "database"
+                                },
+                                {
+                                    "name": "skipInitialLoad",
+                                    "value": true
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "TargetConnectionsInfo": [
+                    {
+                        "TargetEntities": [
+                            {
+                                "name": "source/bronze/orderitems",
+                                "properties": {
+                                    "schema": [],
+                                    "dslConnectorProperties": [
+                                        {
+                                            "name": "container",
+                                            "value": "source"
+                                        },
+                                        {
+                                            "name": "fileSystem",
+                                            "value": "source"
+                                        },
+                                        {
+                                            "name": "folderPath",
+                                            "value": "bronze/orderitems"
+                                        }
+                                    ]
+                                }
+                            }
+                        ],
+                        "Connection": {
+                            "linkedService": {
+                                "referenceName": "AzureDataLakeStorage1",
+                                "type": "LinkedServiceReference"
+                            },
+                            "linkedServiceType": "AzureBlobFS",
+                            "type": "linkedservicetype",
+                            "isInlineDataset": true,
+                            "commonDslConnectorProperties": [
+                                {
+                                    "name": "allowSchemaDrift",
+                                    "value": true
+                                },
+                                {
+                                    "name": "inferDriftedColumnTypes",
+                                    "value": true
+                                },
+                                {
+                                    "name": "format",
+                                    "value": "parquet"
+                                }
+                            ]
+                        },
+                        "DataMapperMappings": [
+                            {
+                                "targetEntityName": "source/bronze/orderitems",
+                                "sourceEntityName": "dbo.OrderItems",
+                                "sourceConnectionReference": {
+                                    "connectionName": "ls_AzureSql_db",
+                                    "type": "linkedservicetype"
+                                },
+                                "attributeMappingInfo": {
+                                    "attributeMappings": []
+                                }
+                            }
+                        ],
+                        "Relationships": []
+                    }
+                ],
+                "Policy": {
+                    "recurrence": {
+                        "frequency": "Minute",
+                        "interval": 15
+                    },
+                    "mode": "Microbatch"
+                },
+                "status": "Stopped",
+                "allowVNetOverride": false,
+                "id": "e5e3b59209e54d42b6b38da68f381ded"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]",
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/returnsCDCtoADLS')]",
+            "type": "Microsoft.DataFactory/factories/adfcdcs",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "SourceConnectionsInfo": [
+                    {
+                        "SourceEntities": [
+                            {
+                                "name": "dbo.Returns",
+                                "properties": {
+                                    "schema": [],
+                                    "dslConnectorProperties": [
+                                        {
+                                            "name": "schemaName",
+                                            "value": "dbo"
+                                        },
+                                        {
+                                            "name": "tableName",
+                                            "value": "Returns"
+                                        },
+                                        {
+                                            "name": "enableNativeCdc",
+                                            "value": true
+                                        },
+                                        {
+                                            "name": "netChanges",
+                                            "value": true
+                                        }
+                                    ]
+                                }
+                            }
+                        ],
+                        "Connection": {
+                            "linkedService": {
+                                "referenceName": "ls_AzureSql_db",
+                                "type": "LinkedServiceReference"
+                            },
+                            "linkedServiceType": "AzureSqlDatabase",
+                            "type": "linkedservicetype",
+                            "isInlineDataset": true,
+                            "commonDslConnectorProperties": [
+                                {
+                                    "name": "allowSchemaDrift",
+                                    "value": true
+                                },
+                                {
+                                    "name": "inferDriftedColumnTypes",
+                                    "value": true
+                                },
+                                {
+                                    "name": "format",
+                                    "value": "table"
+                                },
+                                {
+                                    "name": "store",
+                                    "value": "sqlserver"
+                                },
+                                {
+                                    "name": "databaseType",
+                                    "value": "databaseType"
+                                },
+                                {
+                                    "name": "database",
+                                    "value": "database"
+                                },
+                                {
+                                    "name": "skipInitialLoad",
+                                    "value": true
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "TargetConnectionsInfo": [
+                    {
+                        "TargetEntities": [
+                            {
+                                "name": "source/bronze/cdc/returns",
+                                "properties": {
+                                    "schema": [],
+                                    "dslConnectorProperties": [
+                                        {
+                                            "name": "container",
+                                            "value": "source"
+                                        },
+                                        {
+                                            "name": "fileSystem",
+                                            "value": "source"
+                                        },
+                                        {
+                                            "name": "folderPath",
+                                            "value": "bronze/cdc/returns"
+                                        }
+                                    ]
+                                }
+                            }
+                        ],
+                        "Connection": {
+                            "linkedService": {
+                                "referenceName": "AzureDataLakeStorage1",
+                                "type": "LinkedServiceReference"
+                            },
+                            "linkedServiceType": "AzureBlobFS",
+                            "type": "linkedservicetype",
+                            "isInlineDataset": true,
+                            "commonDslConnectorProperties": [
+                                {
+                                    "name": "allowSchemaDrift",
+                                    "value": true
+                                },
+                                {
+                                    "name": "inferDriftedColumnTypes",
+                                    "value": true
+                                },
+                                {
+                                    "name": "format",
+                                    "value": "parquet"
+                                }
+                            ]
+                        },
+                        "DataMapperMappings": [
+                            {
+                                "targetEntityName": "source/bronze/cdc/returns",
+                                "sourceEntityName": "dbo.Returns",
+                                "sourceConnectionReference": {
+                                    "connectionName": "ls_AzureSql_db",
+                                    "type": "linkedservicetype"
+                                },
+                                "attributeMappingInfo": {
+                                    "attributeMappings": []
+                                }
+                            }
+                        ],
+                        "Relationships": []
+                    }
+                ],
+                "Policy": {
+                    "recurrence": {
+                        "frequency": "Minute",
+                        "interval": 15
+                    },
+                    "mode": "Microbatch"
+                },
+                "status": "Stopped",
+                "allowVNetOverride": false,
+                "id": "7e6834f1990a4819a79f493faac378e8"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]",
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_adls_exchange_rates')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Json",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": {
+                            "value": "@{concat('exchange_rates_', formatDateTime(utcnow(),'yyyy-MM-dd'), '.json')}",
+                            "type": "Expression"
+                        },
+                        "folderPath": "ShopeSensedata ",
+                        "fileSystem": "source"
+                    }
+                },
+                "schema": {}
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_api_exchange_rates')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_exchange_rate_api",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "RestResource",
+                "typeProperties": {
+                    "relativeUrl": "/v6/latest/USD"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_exchange_rate_api')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_CSV_Source')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "parameters": {
+                    "FileName": {
+                        "type": "string"
+                    }
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": {
+                            "value": "@dataset().FileName",
+                            "type": "Expression"
+                        },
+                        "folderPath": "landing",
+                        "fileSystem": "source"
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_SQL')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [],
+                "typeProperties": {
+                    "table": {
+                        "value": "item()",
+                        "type": "Expression"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_product_reviwes')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "ProductReviews.csv",
+                        "folderPath": "landing",
+                        "fileSystem": "source"
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": [
+                    {
+                        "name": "ReviewID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "ProductID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "CustomerID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "Rating",
+                        "type": "String"
+                    },
+                    {
+                        "name": "ReviewTitle",
+                        "type": "String"
+                    },
+                    {
+                        "name": "ReviewText",
+                        "type": "String"
+                    },
+                    {
+                        "name": "ReviewDate",
+                        "type": "String"
+                    },
+                    {
+                        "name": "IsVerifiedPurchase",
+                        "type": "String"
+                    },
+                    {
+                        "name": "HelpfulVotes",
+                        "type": "String"
+                    },
+                    {
+                        "name": "Source",
+                        "type": "String"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "String"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_returns_parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "returns",
+                        "folderPath": "bronze/returns",
+                        "fileSystem": "source"
+                    },
+                    "compressionCodec": "none"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_SQL_OrderItems')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [
+                    {
+                        "name": "OrderItemID",
+                        "type": "varchar"
+                    },
+                    {
+                        "name": "OrderID",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "ProductID",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "SellerID",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "Quantity",
+                        "type": "int",
+                        "precision": 10
+                    },
+                    {
+                        "name": "UnitPrice",
+                        "type": "decimal",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "DiscountAmount",
+                        "type": "decimal",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "TotalPrice",
+                        "type": "decimal",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "Category",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "IsGift",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "datetime2",
+                        "scale": 7
+                    }
+                ],
+                "typeProperties": {
+                    "schema": "dbo",
+                    "table": "Orderitems"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_orderitmes_parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [
+                    {
+                        "name": "OrderItemID",
+                        "type": "varchar"
+                    },
+                    {
+                        "name": "OrderID",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "ProductID",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "SellerID",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "Quantity",
+                        "type": "int",
+                        "precision": 10
+                    },
+                    {
+                        "name": "UnitPrice",
+                        "type": "decimal",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "DiscountAmount",
+                        "type": "decimal",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "TotalPrice",
+                        "type": "decimal",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "Category",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "IsGift",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "datetime2",
+                        "scale": 7
+                    }
+                ],
+                "typeProperties": {
+                    "schema": "dbo",
+                    "table": "Orderitems"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_sql_productrevivews')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "landing",
+                        "fileSystem": "source"
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": [
+                    {
+                        "name": "CustomerID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "FirstName",
+                        "type": "String"
+                    },
+                    {
+                        "name": "LastName",
+                        "type": "String"
+                    },
+                    {
+                        "name": "Email",
+                        "type": "String"
+                    },
+                    {
+                        "name": "Phone",
+                        "type": "String"
+                    },
+                    {
+                        "name": "City",
+                        "type": "String"
+                    },
+                    {
+                        "name": "State",
+                        "type": "String"
+                    },
+                    {
+                        "name": "PinCode",
+                        "type": "String"
+                    },
+                    {
+                        "name": "Segment",
+                        "type": "String"
+                    },
+                    {
+                        "name": "IsPrime",
+                        "type": "String"
+                    },
+                    {
+                        "name": "RegistrationDate",
+                        "type": "String"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "String"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_sql_returns')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [
+                    {
+                        "name": "ReturnID",
+                        "type": "varchar"
+                    },
+                    {
+                        "name": "OrderID",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "CustomerID",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "ReturnDate",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "ReturnReason",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "ReturnStatus",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "RefundAmount",
+                        "type": "decimal",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "RefundDate",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "RefundMethod",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "ConditionOnReturn",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "nvarchar"
+                    }
+                ],
+                "typeProperties": {
+                    "schema": "",
+                    "table": "Returns"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_SQL_Orders')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [],
+                "typeProperties": {
+                    "schema": "",
+                    "table": "orders"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_orders_Parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "orders",
+                        "folderPath": "bronze/orders",
+                        "fileSystem": "source"
+                    },
+                    "compressionCodec": "none"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_orderitems_parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "orderitems",
+                        "folderPath": "bronze/orderitems",
+                        "fileSystem": "source"
+                    },
+                    "compressionCodec": "none"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_sql_watermark_control')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [
+                    {
+                        "name": "source_name",
+                        "type": "varchar"
+                    },
+                    {
+                        "name": "last_load_timestamp",
+                        "type": "datetime2",
+                        "scale": 7
+                    },
+                    {
+                        "name": "last_load_rows",
+                        "type": "bigint",
+                        "precision": 19
+                    },
+                    {
+                        "name": "last_run_status",
+                        "type": "varchar"
+                    }
+                ],
+                "typeProperties": {
+                    "schema": "dbo",
+                    "table": "watermark_control"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DL_sql_customers')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [],
+                "typeProperties": {
+                    "schema": "",
+                    "table": "customers"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_Parquet_customer')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "bronze",
+                        "fileSystem": "source"
+                    },
+                    "compressionCodec": "snappy"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_returns')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "Returns.csv",
+                        "folderPath": "landing",
+                        "fileSystem": "source"
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": [
+                    {
+                        "name": "ReturnID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "OrderID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "CustomerID",
+                        "type": "String"
+                    },
+                    {
+                        "name": "ReturnDate",
+                        "type": "String"
+                    },
+                    {
+                        "name": "ReturnReason",
+                        "type": "String"
+                    },
+                    {
+                        "name": "ReturnStatus",
+                        "type": "String"
+                    },
+                    {
+                        "name": "RefundAmount",
+                        "type": "String"
+                    },
+                    {
+                        "name": "RefundDate",
+                        "type": "String"
+                    },
+                    {
+                        "name": "RefundMethod",
+                        "type": "String"
+                    },
+                    {
+                        "name": "ConditionOnReturn",
+                        "type": "String"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "String"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_Parquet_customers')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "bronze/customers",
+                        "fileSystem": "source"
+                    },
+                    "compressionCodec": "none"
+                },
+                "schema": [
+                    {
+                        "name": "OrderItemID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "OrderID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "ProductID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "SellerID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "Quantity",
+                        "type": "INT32"
+                    },
+                    {
+                        "name": "UnitPrice",
+                        "type": "DECIMAL",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "DiscountAmount",
+                        "type": "DECIMAL",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "TotalPrice",
+                        "type": "DECIMAL",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "Category",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "IsGift",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "INT96"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DL_sql_watermark')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [],
+                "typeProperties": {
+                    "schema": "dbo",
+                    "table": "watermark_control"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_Parquet_Products')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "bronze/products",
+                        "fileSystem": "source"
+                    },
+                    "compressionCodec": "none"
+                },
+                "schema": [
+                    {
+                        "name": "OrderItemID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "OrderID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "ProductID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "SellerID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "Quantity",
+                        "type": "INT32"
+                    },
+                    {
+                        "name": "UnitPrice",
+                        "type": "DECIMAL",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "DiscountAmount",
+                        "type": "DECIMAL",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "TotalPrice",
+                        "type": "DECIMAL",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "Category",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "IsGift",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "INT96"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_Parquet_Sellers')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "bronze/sellers",
+                        "fileSystem": "source"
+                    },
+                    "compressionCodec": "none"
+                },
+                "schema": [
+                    {
+                        "name": "OrderItemID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "OrderID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "ProductID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "SellerID",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "Quantity",
+                        "type": "INT32"
+                    },
+                    {
+                        "name": "UnitPrice",
+                        "type": "DECIMAL",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "DiscountAmount",
+                        "type": "DECIMAL",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "TotalPrice",
+                        "type": "DECIMAL",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "Category",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "IsGift",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "INT96"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_sql_products')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [
+                    {
+                        "name": "ProductID",
+                        "type": "varchar"
+                    },
+                    {
+                        "name": "ProductName",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "Category",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "SubCategory",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "Brand",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "SellerID",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "ListPrice",
+                        "type": "decimal",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "CostPrice",
+                        "type": "decimal",
+                        "precision": 10,
+                        "scale": 2
+                    },
+                    {
+                        "name": "StockQuantity",
+                        "type": "int",
+                        "precision": 10
+                    },
+                    {
+                        "name": "Rating",
+                        "type": "decimal",
+                        "precision": 3,
+                        "scale": 1
+                    },
+                    {
+                        "name": "IsActive",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "LaunchDate",
+                        "type": "date"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "datetime2",
+                        "scale": 7
+                    }
+                ],
+                "typeProperties": {
+                    "schema": "",
+                    "table": "Products"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_SQL_Sellers')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [
+                    {
+                        "name": "SellerID",
+                        "type": "varchar"
+                    },
+                    {
+                        "name": "SellerName",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "SellerEmail",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "City",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "State",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "Rating",
+                        "type": "decimal",
+                        "precision": 3,
+                        "scale": 1
+                    },
+                    {
+                        "name": "TotalProducts",
+                        "type": "int",
+                        "precision": 10
+                    },
+                    {
+                        "name": "IsActive",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "JoinDate",
+                        "type": "date"
+                    },
+                    {
+                        "name": "LastModifiedDate",
+                        "type": "datetime2",
+                        "scale": 7
+                    }
+                ],
+                "typeProperties": {
+                    "schema": "",
+                    "table": "sellers"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_productreviwes_parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "AzureDataLakeStorage1",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "bronze",
+                        "fileSystem": "source"
+                    },
+                    "compressionCodec": "none"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStorage1')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/DS_product_reviews')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_AzureSql_db",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [],
+                "typeProperties": {
+                    "schema": "",
+                    "table": "productreviews"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_AzureSql_db')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/AzureDataLakeStorage1')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "AzureBlobFS",
+                "typeProperties": {
+                    "url": "[parameters('AzureDataLakeStorage1_properties_typeProperties_url')]",
+                    "accountKey": {
+                        "type": "SecureString",
+                        "value": "[parameters('AzureDataLakeStorage1_accountKey')]"
+                    }
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ls_exchange_rate_api')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "RestService",
+                "typeProperties": {
+                    "url": "[parameters('ls_exchange_rate_api_properties_typeProperties_url')]",
+                    "enableServerCertificateValidation": true,
+                    "authenticationType": "Anonymous"
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ls_AzureSql_db')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "AzureSqlDatabase",
+                "typeProperties": {
+                    "server": "[parameters('ls_AzureSql_db_properties_typeProperties_server')]",
+                    "database": "[parameters('ls_AzureSql_db_properties_typeProperties_database')]",
+                    "encrypt": "mandatory",
+                    "trustServerCertificate": true,
+                    "authenticationType": "SQL",
+                    "userName": "[parameters('ls_AzureSql_db_properties_typeProperties_userName')]",
+                    "password": {
+                        "type": "SecureString",
+                        "value": "[parameters('ls_AzureSql_db_password')]"
+                    }
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/trg_daily_exchange_rates')]",
+            "type": "Microsoft.DataFactory/factories/triggers",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "runtimeState": "Stopped",
+                "pipelines": [
+                    {
+                        "pipelineReference": {
+                            "referenceName": "pl_ingest_exchange_rates",
+                            "type": "PipelineReference"
+                        },
+                        "parameters": {}
+                    }
+                ],
+                "type": "ScheduleTrigger",
+                "typeProperties": {
+                    "recurrence": {
+                        "frequency": "Day",
+                        "interval": 1,
+                        "startTime": "2026-06-29T06:00:00",
+                        "timeZone": "India Standard Time",
+                        "schedule": {
+                            "minutes": [
+                                0
+                            ],
+                            "hours": [
+                                6
+                            ]
+                        }
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/pipelines/pl_ingest_exchange_rates')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/trg_incremental_load_customer')]",
+            "type": "Microsoft.DataFactory/factories/triggers",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "runtimeState": "Stopped",
+                "pipelines": [
+                    {
+                        "pipelineReference": {
+                            "referenceName": "pl_ingest_customers_incremental",
+                            "type": "PipelineReference"
+                        },
+                        "parameters": {}
+                    }
+                ],
+                "type": "ScheduleTrigger",
+                "typeProperties": {
+                    "recurrence": {
+                        "frequency": "Day",
+                        "interval": 1,
+                        "startTime": "2026-07-05T02:00:00",
+                        "timeZone": "India Standard Time",
+                        "schedule": {
+                            "minutes": [
+                                5
+                            ],
+                            "hours": [
+                                2
+                            ]
+                        }
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/pipelines/pl_ingest_customers_incremental')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/trg__weekly_full_referesh_products_sellers')]",
+            "type": "Microsoft.DataFactory/factories/triggers",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "runtimeState": "Stopped",
+                "pipelines": [
+                    {
+                        "pipelineReference": {
+                            "referenceName": "pl_weekly_full_refresh",
+                            "type": "PipelineReference"
+                        },
+                        "parameters": {}
+                    }
+                ],
+                "type": "ScheduleTrigger",
+                "typeProperties": {
+                    "recurrence": {
+                        "frequency": "Week",
+                        "interval": 1,
+                        "startTime": "2026-07-11T01:00:00",
+                        "timeZone": "India Standard Time",
+                        "schedule": {
+                            "minutes": [
+                                0
+                            ],
+                            "hours": [
+                                1
+                            ],
+                            "weekDays": [
+                                "Sunday"
+                            ]
+                        }
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/pipelines/pl_weekly_full_refresh')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/trg__weekly_full_referesh_productreviews')]",
+            "type": "Microsoft.DataFactory/factories/triggers",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "runtimeState": "Stopped",
+                "pipelines": [],
+                "type": "ScheduleTrigger",
+                "typeProperties": {
+                    "recurrence": {
+                        "frequency": "Week",
+                        "interval": 1,
+                        "startTime": "2026-07-11T01:00:00",
+                        "timeZone": "India Standard Time",
+                        "schedule": {
+                            "minutes": [
+                                0
+                            ],
+                            "hours": [
+                                1
+                            ],
+                            "weekDays": [
+                                "Sunday"
+                            ]
+                        }
+                    }
+                }
+            },
+            "dependsOn": []
+        }
+    ]
+}

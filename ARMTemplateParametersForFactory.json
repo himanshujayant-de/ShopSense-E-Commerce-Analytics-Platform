@@ -1,0 +1,30 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "value": "himansh-ADF"
+        },
+        "AzureDataLakeStorage1_accountKey": {
+            "value": ""
+        },
+        "ls_AzureSql_db_password": {
+            "value": ""
+        },
+        "AzureDataLakeStorage1_properties_typeProperties_url": {
+            "value": "https://stshopsensedevhj.dfs.core.windows.net/"
+        },
+        "ls_exchange_rate_api_properties_typeProperties_url": {
+            "value": "https://open.er-api.com"
+        },
+        "ls_AzureSql_db_properties_typeProperties_server": {
+            "value": "ss-sqlserver.database.windows.net"
+        },
+        "ls_AzureSql_db_properties_typeProperties_database": {
+            "value": "ss-sql-database"
+        },
+        "ls_AzureSql_db_properties_typeProperties_userName": {
+            "value": "ssprojectserver"
+        }
+    }
+}
