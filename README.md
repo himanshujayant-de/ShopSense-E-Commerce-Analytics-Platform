@@ -36,10 +36,30 @@ Azure SQL Database  --> ADLS  --> Azure Data Factory -->  ADLS Gen2 Bronze Layer
 
 ## Medallion Architecture
 
-BRONZE (Raw) Exact copy of source data — never modified Parquet format — partitioned by ingestion date Includes CDC change records with operation type
-SILVER (Cleaned) Type casting: strings → DATETIME2, DECIMAL, BOOLEAN Deduplication: window functions on primary key Data quality: quarantine for invalid records Enrichment: derived columns (IsDelivered, NetRevenue, etc.) SCD Type 2 on Customers (version history)
-GOLD (Aggregated) daily_sales: Revenue by day × category × seller rfm_segments: 1 row per customer with RFM scores product_performance: Revenue, rating, return rate per product returns_analysis: Enriched returns with margin impact customer_cohorts: Monthly retention rates per cohort.
+### BRONZE — Raw Layer
 
+- Exact copy of source data
+- Data is stored in Parquet format
+- Data is partitioned by ingestion date
+- Includes CDC change records with operation type
+- Raw data is never manually modified
+
+### SILVER — Cleaned Layer
+
+- Data types are standardised
+- Strings are converted to `DATETIME2`, `DECIMAL`, and `BOOLEAN`
+- Window functions are used for deduplication
+- Invalid records are moved to quarantine
+- Derived columns are created, such as `IsDelivered` and `NetRevenue`
+- SCD Type 2 is implemented for Customer history
+
+### GOLD — Aggregated Layer
+
+- `daily_sales` — Revenue by date, category, and seller
+- `rfm_segments` — One row per customer with RFM scores
+- `product_performance` — Revenue, rating, and return-rate metrics
+- `returns_analysis` — Return information with estimated margin impact
+- `customer_cohorts` — Monthly retention rates by customer cohort
 
 
 ## Key Engineering Patterns
